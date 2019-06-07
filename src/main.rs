@@ -25,8 +25,16 @@ trait Zero {
     }
 }
 
+#[lit(uint)]
+trait Foo<T = _> {
+    fn foo() -> Self {
+        1
+    }
+}
+
 fn main() {
     assert_eq!(u32::test(), true);
     assert_eq!(i8::test(), false);
     assert_eq!(usize::zero(), 0);
+    assert_eq!(<u128 as Foo<u128>>::foo(), 1);
 }
