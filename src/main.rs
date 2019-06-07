@@ -18,7 +18,15 @@ impl Test for _ {
     }
 }
 
+#[lit(uint)]
+trait Zero {
+    fn zero() -> Self {
+        0
+    }
+}
+
 fn main() {
     assert_eq!(u32::test(), true);
     assert_eq!(i8::test(), false);
+    assert_eq!(usize::zero(), 0);
 }
