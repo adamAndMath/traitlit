@@ -358,6 +358,9 @@ impl ContainsInfer for TypeParamBound {
     }
 }
 
+/// Generates implimentations for a set of literal types.
+/// Can be used on either an impl block or directly on the trait definition.
+/// The type will be inserted on all '_' in the type or trait arguments.
 #[proc_macro_attribute]
 pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
     let attr = syn::parse_macro_input!(attr as Attr);
