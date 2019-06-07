@@ -1,3 +1,24 @@
+use traitlit::lit;
+
+trait Test {
+    fn test() -> bool;
+}
+
+#[lit(uint)]
+impl Test for _ {
+    fn test() -> bool {
+        true
+    }
+}
+
+#[lit(int)]
+impl Test for _ {
+    fn test() -> bool {
+        false
+    }
+}
+
 fn main() {
-    println!("Hello, world!");
+    assert_eq!(u32::test(), true);
+    assert_eq!(i8::test(), false);
 }
