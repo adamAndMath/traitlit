@@ -2,6 +2,9 @@
 
 extern crate proc_macro;
 
+mod attr;
+use attr::Attr;
+
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 
@@ -17,7 +20,6 @@ use syn::Type;
 use syn::TypePath;
 use syn::TypeInfer;
 use syn::Ident;
-use syn::token::Comma;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::Token;
@@ -36,54 +38,6 @@ use syn::Expr;
 use syn::ExprPath;
 
 use quote::ToTokens;
-use quote::TokenStreamExt;
-
-const UINT: [&str; 6] = ["u8", "u16", "u32", "u64", "u128", "usize"];
-const INT: [&str; 6] = ["i8", "i16", "i32", "i64", "i128", "isize"];
-const FLOAT: [&str; 2] = ["f32", "f64"];
-
-#[derive(Default)]
-struct Attr {
-    uint: bool,
-    int: bool,
-    float: bool,
-}
-
-impl Attr {
-    pub fn set(&mut self, ident: Ident) -> syn::parse::Result<()> {
-        let p = if ident == "uint" {
-            &mut self.uint
-        } else if ident == "int" {
-            &mut self.int
-        } else if ident == "float" {
-            &mut self.float
-        } else {
-            return Err(syn::Error::new(ident.span(), "Unknown type set"))
-        };
-
-        if *p {
-            ident.span().unwrap().warning("Duplicate type set").emit()
-        }
-
-        *p = true;
-        Ok(())
-    }
-}
-
-impl syn::parse::Parse for Attr {
-    fn parse(input: syn::parse::ParseStream) -> syn::parse::Result<Self> {
-        let mut attr = Attr::default();
-        let list = Punctuated::<Ident, Comma>::parse_terminated(input)?;
-        if list.is_empty() {
-            Span::call_site().unwrap().warning("lit won't generate any impls").emit()
-        }
-
-        for ident in list {
-            attr.set(ident)?;
-        }
-        Ok(attr)
-    }
-}
 
 fn ident_to_type(ident: Ident) -> Type {
     Type::Path(TypePath { qself: None, path: ident.into() })
@@ -443,17 +397,7 @@ pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
         },
     };
 
-    if attr.uint {
-        stream.append_all(UINT.iter().map(|name| Ident::new(name, span)).map(ident_to_type).map(|ty| build_impl(&item_impl, ty)));
-    }
-
-    if attr.int {
-        stream.append_all(INT.iter().map(|name| Ident::new(name, span)).map(ident_to_type).map(|ty| build_impl(&item_impl, ty)));
-    }
-
-    if attr.float {
-        stream.append_all(FLOAT.iter().map(|name| Ident::new(name, span)).map(ident_to_type).map(|ty| build_impl(&item_impl, ty)));
-    }
+    attr.for_each(|name|build_impl(&item_impl, ident_to_type(Ident::new(name, span))).to_tokens(&mut stream));
 
     stream.into()
 }
