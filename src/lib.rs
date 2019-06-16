@@ -384,14 +384,6 @@ pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
             (item_impl, input.into_token_stream())
         },
         Item::Impl(input) => {
-            match &*input.self_ty {
-                Type::Infer(_) => (),
-                ty => {
-                    ty.span().unwrap().error(format!("Expected _, found {}", ty.into_token_stream())).emit();
-                    return input.into_token_stream().into()
-                },
-            }
-
             (input, proc_macro2::TokenStream::new())
         },
         input => {
