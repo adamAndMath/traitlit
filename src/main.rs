@@ -4,28 +4,28 @@ trait Test {
     fn test() -> bool;
 }
 
-#[lit(uint)]
+#[lit(u_)]
 impl Test for _ {
     fn test() -> bool {
         true
     }
 }
 
-#[lit(int)]
+#[lit(i_)]
 impl Test for _ {
     fn test() -> bool {
         false
     }
 }
 
-#[lit(uint)]
+#[lit(u_)]
 trait Zero {
     fn zero() -> Self {
         0
     }
 }
 
-#[lit(uint)]
+#[lit(u128)]
 trait Foo<T = _> {
     fn foo() -> Self {
         1

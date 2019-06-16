@@ -366,7 +366,7 @@ pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
     let attr = syn::parse_macro_input!(attr as Attr);
     let input = syn::parse_macro_input!(input as Item);
 
-    let (span, item_impl, mut stream) = match input {
+    let (item_impl, mut stream) = match input {
         Item::Trait(mut input) => {
             let mut generics = split_gen(&mut input.generics);
             let args = separate_gen(&mut generics);
@@ -381,18 +381,18 @@ pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
                 brace_token: input.brace_token,
                 items: input.items.iter_mut().map(separate_impl).collect(),
             };
-            (input.ident.span(), item_impl, input.into_token_stream())
+            (item_impl, input.into_token_stream())
         },
         Item::Impl(input) => {
-            let span = match &*input.self_ty {
-                Type::Infer(infer) => infer.underscore_token.spans[0],
+            match &*input.self_ty {
+                Type::Infer(_) => (),
                 ty => {
                     ty.span().unwrap().error(format!("Expected _, found {}", ty.into_token_stream())).emit();
                     return input.into_token_stream().into()
                 },
-            };
+            }
 
-            (span, input, proc_macro2::TokenStream::new())
+            (input, proc_macro2::TokenStream::new())
         },
         input => {
             input.span().unwrap().error("lit is only allowed on traits and trait impls").emit();
@@ -400,7 +400,9 @@ pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
         },
     };
 
-    attr.for_each(|name|build_impl(&item_impl, ident_to_type(Ident::new(name, span))).to_tokens(&mut stream));
+    for ty in attr.types {
+        build_impl(&item_impl, ty).to_tokens(&mut stream)
+    }
 
     stream.into()
 }
