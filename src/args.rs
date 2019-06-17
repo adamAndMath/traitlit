@@ -76,14 +76,18 @@ impl Iterator for SetIterator {
     }
 }
 
-#[derive(Default)]
 pub struct Args {
+    pub ident: Ident,
+    _equal: Token!(=),
     pub types: Vec<WithAttr<Type>>,
 }
 
 impl Parse for Args {
     fn parse(input: ParseStream) -> parse::Result<Self> {
-        let list = Punctuated::<WithAttr<LitSet>, Token!(+)>::parse_separated_nonempty(input)?;
-        Ok(Args { types: list.into_iter().flatten().collect() })
+        Ok(Args {
+            ident: input.parse()?,
+            _equal: input.parse()?,
+            types: Punctuated::<WithAttr<LitSet>, Token!(+)>::parse_separated_nonempty(input)?.into_iter().flatten().collect()
+        })
     }
 }

@@ -47,11 +47,11 @@ fn ident_to_expr(ident: Ident) -> Expr {
     Expr::Path(ExprPath { attrs: vec![], qself: None, path: ident.into() })
 }
 
-fn build_impl(input: &ItemImpl, ty: Type) -> ItemImpl {
+fn build_impl(input: &ItemImpl, v: &Ident, ty: Type) -> ItemImpl {
     let mut re = input.clone();
-    re.self_ty.infer(&ty);
+    re.self_ty.infer(v, &ty);
     if let Some((_, p, _)) = &mut re.trait_ {
-        p.segments.infer(&ty);
+        p.segments.infer(v, &ty);
     }
     re
 }
@@ -107,16 +107,16 @@ fn separate_impl(item: &mut TraitItem) -> ImplItem {
     }
 }
 
-fn split_gen(gen: &mut Generics) -> Generics {
+fn split_gen(gen: &mut Generics, v: &Ident) -> Generics {
     Generics {
         lt_token: gen.lt_token.clone(),
-        params: gen.params.pairs_mut().map(Pair::into_tuple).map(|(v, p)|Pair::new(split_gen_par(v), p.cloned())).collect(),
+        params: gen.params.pairs_mut().map(Pair::into_tuple).map(|(t, p)|Pair::new(split_gen_par(t, v), p.cloned())).collect(),
         gt_token: gen.gt_token.clone(),
         where_clause: gen.where_clause.clone(),
     }
 }
 
-fn split_gen_par(gen: &mut GenericParam) -> GenericParam {
+fn split_gen_par(gen: &mut GenericParam, v: &Ident) -> GenericParam {
     match gen {
         GenericParam::Type(t) => {
             GenericParam::Type(TypeParam {
@@ -126,7 +126,7 @@ fn split_gen_par(gen: &mut GenericParam) -> GenericParam {
                 bounds: t.bounds.clone(),
                 eq_token: t.eq_token.clone(),
                 default:
-                    if t.default.as_mut().map(|ty|ty.contains_infer()).unwrap_or(false) {
+                    if t.default.as_mut().map(|ty|ty.contains_var(v)).unwrap_or(false) {
                         t.default.take()
                     } else {
                         None
@@ -188,13 +188,13 @@ fn separate_gen_par(gen: GenericParam) -> (GenericArgument, Option<GenericParam>
 }
 
 trait ContainsInfer {
-    fn contains_infer(&self) -> bool;
+    fn contains_var(&self, v: &Ident) -> bool;
 
-    fn infer(&mut self, val: &Type);
+    fn infer(&mut self, v: &Ident, val: &Type);
 }
 
 impl ContainsInfer for Type {
-    fn contains_infer(&self) -> bool {
+    fn contains_var(&self, v: &Ident) -> bool {
         let mut ty = self;
         loop {
             match ty {
@@ -203,7 +203,7 @@ impl ContainsInfer for Type {
                 Type::Ptr(ptr) => ty = &ptr.elem,
                 Type::Reference(ptr) => ty = &ptr.elem,
                 Type::BareFn(fun) => {
-                    if fun.inputs.contains_infer() {
+                    if fun.inputs.contains_var(v) {
                         return true;
                     }
 
@@ -213,36 +213,38 @@ impl ContainsInfer for Type {
                     }
                 },
                 Type::Never(_) => return false,
-                Type::Tuple(tuple) => return tuple.elems.contains_infer(),
+                Type::Tuple(tuple) => return tuple.elems.contains_var(v),
                 Type::Path(path) => {
-                    if path.path.segments.contains_infer() {
-                        return true;
-                    }
                     match &path.qself {
                         Some(qself) => ty = &qself.ty,
-                        None => return false,
+                        None => return path.path.is_ident(v.clone()) || path.path.segments.contains_var(v),
                     }
                 },
-                Type::TraitObject(obj) => return obj.bounds.contains_infer(),
-                Type::ImplTrait(it) => return it.bounds.contains_infer(),
+                Type::TraitObject(obj) => return obj.bounds.contains_var(v),
+                Type::ImplTrait(it) => return it.bounds.contains_var(v),
                 Type::Paren(paren) => ty = &paren.elem,
                 Type::Group(group) => ty = &group.elem,
-                Type::Infer(_) => return true,
+                Type::Infer(_) => return false,
                 Type::Macro(_) => return false,
                 Type::Verbatim(_) => return false,
             }
         }
     }
-    fn infer(&mut self, val: &Type) {
+    fn infer(&mut self, v: &Ident, val: &Type) {
         let mut ty = self;
         loop {
+            if let Type::Path(path) = ty {
+                if path.qself.is_none() && path.path.is_ident(v.clone()) {
+                    return *ty = val.clone()
+                }
+            }
             match ty {
                 Type::Slice(slice) => ty = &mut slice.elem,
                 Type::Array(array) => ty = &mut array.elem,
                 Type::Ptr(ptr) => ty = &mut ptr.elem,
                 Type::Reference(ptr) => ty = &mut ptr.elem,
                 Type::BareFn(fun) => {
-                    fun.inputs.infer(val);
+                    fun.inputs.infer(v, val);
 
                     match &mut fun.output {
                         ReturnType::Default => return,
@@ -250,20 +252,20 @@ impl ContainsInfer for Type {
                     }
                 },
                 Type::Never(_) => return,
-                Type::Tuple(tuple) => return tuple.elems.infer(val),
+                Type::Tuple(tuple) => return tuple.elems.infer(v, val),
                 Type::Path(path) => {
-                    path.path.segments.infer(val);
+                    path.path.segments.infer(v, val);
 
                     match &mut path.qself {
                         Some(qself) => ty = &mut qself.ty,
                         None => return,
                     }
                 },
-                Type::TraitObject(obj) => return obj.bounds.infer(val),
-                Type::ImplTrait(it) => return it.bounds.infer(val),
+                Type::TraitObject(obj) => return obj.bounds.infer(v, val),
+                Type::ImplTrait(it) => return it.bounds.infer(v, val),
                 Type::Paren(paren) => ty = &mut paren.elem,
                 Type::Group(group) => ty = &mut group.elem,
-                Type::Infer(_) => return *ty = val.clone(),
+                Type::Infer(_) => return,
                 Type::Macro(_) => return,
                 Type::Verbatim(_) => return,
             }
@@ -272,48 +274,48 @@ impl ContainsInfer for Type {
 }
 
 impl<T: ContainsInfer, P> ContainsInfer for Punctuated<T, P> {
-    fn contains_infer(&self) -> bool {
-        self.iter().any(T::contains_infer)
+    fn contains_var(&self, v: &Ident) -> bool {
+        self.iter().any(|t|t.contains_var(v))
     }
 
-    fn infer(&mut self, val: &Type) {
-        self.iter_mut().for_each(|t|t.infer(val))
+    fn infer(&mut self, v: &Ident, val: &Type) {
+        self.iter_mut().for_each(|t|t.infer(v, val))
     }
 }
 
 impl ContainsInfer for BareFnArg {
-    fn contains_infer(&self) -> bool {
-        self.ty.contains_infer()
+    fn contains_var(&self, v: &Ident) -> bool {
+        self.ty.contains_var(v)
     }
 
-    fn infer(&mut self, val: &Type) {
-        self.ty.infer(val)
+    fn infer(&mut self, v: &Ident, val: &Type) {
+        self.ty.infer(v, val)
     }
 }
 
 impl ContainsInfer for PathSegment {
-    fn contains_infer(&self) -> bool {
+    fn contains_var(&self, v: &Ident) -> bool {
         match &self.arguments {
             PathArguments::None => false,
-            PathArguments::AngleBracketed(args) => args.args.contains_infer(),
-            PathArguments::Parenthesized(fun) => fun.inputs.contains_infer() ||
+            PathArguments::AngleBracketed(args) => args.args.contains_var(v),
+            PathArguments::Parenthesized(fun) => fun.inputs.contains_var(v) ||
                 match &fun.output {
                     ReturnType::Default => false,
-                    ReturnType::Type(_, ty) => ty.contains_infer(),
+                    ReturnType::Type(_, ty) => ty.contains_var(v),
                 },
         }
     }
 
-    fn infer(&mut self, val: &Type) {
+    fn infer(&mut self, v: &Ident, val: &Type) {
         match &mut self.arguments {
             PathArguments::None => (),
-            PathArguments::AngleBracketed(args) => args.args.infer(val),
+            PathArguments::AngleBracketed(args) => args.args.infer(v, val),
             PathArguments::Parenthesized(fun) => {
-                fun.inputs.infer(val);
+                fun.inputs.infer(v, val);
 
                 match &mut fun.output {
                     ReturnType::Default => (),
-                    ReturnType::Type(_, ty) => ty.infer(val),
+                    ReturnType::Type(_, ty) => ty.infer(v, val),
                 }
             },
         }
@@ -321,38 +323,38 @@ impl ContainsInfer for PathSegment {
 }
 
 impl ContainsInfer for GenericArgument {
-    fn contains_infer(&self) -> bool {
+    fn contains_var(&self, v: &Ident) -> bool {
         match self {
             GenericArgument::Lifetime(_) => false,
-            GenericArgument::Type(ty) => ty.contains_infer(),
-            GenericArgument::Binding(binding) => binding.ty.contains_infer(),
-            GenericArgument::Constraint(constraint) => constraint.bounds.contains_infer(),
+            GenericArgument::Type(ty) => ty.contains_var(v),
+            GenericArgument::Binding(binding) => binding.ty.contains_var(v),
+            GenericArgument::Constraint(constraint) => constraint.bounds.contains_var(v),
             GenericArgument::Const(_) => false,
         }
     }
 
-    fn infer(&mut self, val: &Type) {
+    fn infer(&mut self, v: &Ident, val: &Type) {
         match self {
             GenericArgument::Lifetime(_) => (),
-            GenericArgument::Type(ty) => ty.infer(val),
-            GenericArgument::Binding(binding) => binding.ty.infer(val),
-            GenericArgument::Constraint(constraint) => constraint.bounds.infer(val),
+            GenericArgument::Type(ty) => ty.infer(v, val),
+            GenericArgument::Binding(binding) => binding.ty.infer(v, val),
+            GenericArgument::Constraint(constraint) => constraint.bounds.infer(v, val),
             GenericArgument::Const(_) => (),
         }
     }
 }
 
 impl ContainsInfer for TypeParamBound {
-    fn contains_infer(&self) -> bool {
+    fn contains_var(&self, v: &Ident) -> bool {
         match self {
-            TypeParamBound::Trait(bound) => bound.path.segments.contains_infer(),
+            TypeParamBound::Trait(bound) => bound.path.segments.contains_var(v),
             TypeParamBound::Lifetime(_) => false,
         }
     }
 
-    fn infer(&mut self, val: &Type) {
+    fn infer(&mut self, v: &Ident, val: &Type) {
         match self {
-            TypeParamBound::Trait(bound) => bound.path.segments.infer(val),
+            TypeParamBound::Trait(bound) => bound.path.segments.infer(v, val),
             TypeParamBound::Lifetime(_) => (),
         }
     }
@@ -368,16 +370,16 @@ pub fn lit(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let (item_impl, mut stream) = match input {
         Item::Trait(mut input) => {
-            let mut generics = split_gen(&mut input.generics);
-            let args = separate_gen(&mut generics);
+            let mut generics = split_gen(&mut input.generics, &args.ident);
+            let gen = separate_gen(&mut generics);
             let item_impl = ItemImpl {
                 attrs: vec![],
                 defaultness: None,
                 unsafety: input.unsafety.clone(),
                 impl_token: Token!(impl)(Span::call_site()),
                 generics,
-                trait_: Some((None, PathSegment { ident: input.ident.clone(), arguments: args }.into(), Token!(for)(Span::call_site()))),
-                self_ty: Box::new(Type::Infer(TypeInfer { underscore_token: Token!(_)(Span::call_site()) })),
+                trait_: Some((None, PathSegment { ident: input.ident.clone(), arguments: gen }.into(), Token!(for)(Span::call_site()))),
+                self_ty: Box::new(ident_to_type(args.ident.clone())),
                 brace_token: input.brace_token,
                 items: input.items.iter_mut().map(separate_impl).collect(),
             };
@@ -392,9 +394,9 @@ pub fn lit(args: TokenStream, input: TokenStream) -> TokenStream {
         },
     };
 
-    for WithAttr(args, ty) in args.types {
-        args.into_iter().for_each(|arg|arg.to_tokens(&mut stream));
-        build_impl(&item_impl, ty).to_tokens(&mut stream)
+    for WithAttr(attrs, ty) in args.types {
+        attrs.into_iter().for_each(|attr|attr.to_tokens(&mut stream));
+        build_impl(&item_impl, &args.ident, ty).to_tokens(&mut stream)
     }
 
     stream.into()
