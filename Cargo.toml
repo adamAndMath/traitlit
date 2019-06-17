@@ -1,6 +1,6 @@
 [package]
 name = "traitlit"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Adam <adam.and.math@gmail.com>"]
 edition = "2018"
 description = "This crate exposes an atribute for implementing traits for integer and float types."
