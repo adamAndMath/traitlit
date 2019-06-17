@@ -25,7 +25,7 @@ trait Zero {
     }
 }
 
-#[lit(u128)]
+#[lit([u128])]
 trait Foo<T = _> {
     fn foo() -> Self {
         1

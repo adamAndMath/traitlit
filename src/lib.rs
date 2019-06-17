@@ -2,8 +2,8 @@
 
 extern crate proc_macro;
 
-mod attr;
-use attr::Attr;
+mod args;
+use args::*;
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
@@ -362,8 +362,8 @@ impl ContainsInfer for TypeParamBound {
 /// Can be used on either an impl block or directly on the trait definition.
 /// The type will be inserted on all '_' in the type or trait arguments.
 #[proc_macro_attribute]
-pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
-    let attr = syn::parse_macro_input!(attr as Attr);
+pub fn lit(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(args as Args);
     let input = syn::parse_macro_input!(input as Item);
 
     let (item_impl, mut stream) = match input {
@@ -392,7 +392,8 @@ pub fn lit(attr: TokenStream, input: TokenStream) -> TokenStream {
         },
     };
 
-    for ty in attr.types {
+    for WithAttr(args, ty) in args.types {
+        args.into_iter().for_each(|arg|arg.to_tokens(&mut stream));
         build_impl(&item_impl, ty).to_tokens(&mut stream)
     }
 
