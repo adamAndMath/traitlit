@@ -18,7 +18,6 @@ use syn::TraitItem;
 use syn::Visibility;
 use syn::Type;
 use syn::TypePath;
-use syn::TypeInfer;
 use syn::Ident;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
