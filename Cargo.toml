@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Adam <adam.and.math@gmail.com>"]
 edition = "2018"
 description = "This crate exposes an atribute for implementing traits for integer and float types."
+keywords = ["macro", "proc_macro", "integer", "numeric"]
 repository = "https://github.com/adamAndMath/traitlit"
 license = "MIT"
 readme = "README.md"
