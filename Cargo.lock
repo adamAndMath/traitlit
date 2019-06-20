@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "traitlit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 0.6.12 (registry+https://github.com/rust-lang/crates.io-index)",
