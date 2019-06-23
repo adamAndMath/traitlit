@@ -4,7 +4,7 @@ trait Test {
     fn test() -> Self;
 }
 
-#[lit(V = u_)]
+#[lit(V = u_ + NonZeroU_)]
 impl Test for V {
     fn test() -> V {
         1

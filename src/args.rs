@@ -72,8 +72,8 @@ const UINT: [&'static str; 6] = ["u8", "u16", "u32", "u64", "u128", "usize"];
 const INT: [&'static str; 6] = ["i8", "i16", "i32", "i64", "i128", "isize"];
 const FLOAT: [&'static str; 2] = ["f32", "f64"];
 
-const NON_ZERO_UINT: [&'static str; 6] = ["NON_ZERO_U8", "NON_ZERO_U16", "NON_ZERO_U32", "NON_ZERO_U64", "NON_ZERO_U128", "NON_ZERO_Usize"];
-const NON_ZERO_INT: [&'static str; 6] = ["NON_ZERO_I8", "NON_ZERO_I16", "NON_ZERO_I32", "NON_ZERO_I64", "NON_ZERO_I128", "NON_ZERO_Isize"];
+const NON_ZERO_UINT: [&'static str; 6] = ["NonZeroU8", "NonZeroU16", "NonZeroU32", "NonZeroU64", "NonZeroU128", "NonZeroUsize"];
+const NON_ZERO_INT: [&'static str; 6] = ["NonZeroI8", "NonZeroI16", "NonZeroI32", "NonZeroI64", "NonZeroI128", "NonZeroIsize"];
 
 enum SetIterator {
     Named(Vec<Attribute>, Span, &'static[&'static str], Iter<'static, &'static str>),
