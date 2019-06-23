@@ -4,10 +4,17 @@ trait Test {
     fn test() -> Self;
 }
 
-#[lit(V = u_ + NonZeroU_)]
+#[lit(V = u_)]
 impl Test for V {
     fn test() -> V {
         1
+    }
+}
+
+#[lit(V = NonZeroU_)]
+impl Test for V {
+    fn test() -> V {
+        unsafe { <V>::new_unchecked(1) }
     }
 }
 
