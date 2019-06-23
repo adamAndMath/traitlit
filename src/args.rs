@@ -1,6 +1,9 @@
 use syn::Attribute;
 use syn::Type;
 use syn::TypePath;
+use syn::Path;
+use syn::PathSegment;
+use syn::PathArguments;
 use syn::Ident;
 use syn::parse::{ self, Parse, ParseStream };
 use syn::punctuated::Punctuated;
@@ -8,6 +11,7 @@ use syn::Token;
 use syn::bracketed;
 use syn::token::Bracket;
 use syn::punctuated::IntoIter;
+use syn::punctuated::Pair;
 use std::slice::Iter;
 use proc_macro2::Span;
 
@@ -42,11 +46,15 @@ impl IntoIterator for WithAttr<LitSet> {
         match self {
             WithAttr(attrs, LitSet::Named(ident)) => {
                 if ident == "u_" {
-                    SetIterator::Named(attrs, ident.span(), UINT.iter())
+                    SetIterator::Named(attrs, ident.span(), EMPTY_PATH, UINT.iter())
                 } else if ident == "i_" {
-                    SetIterator::Named(attrs, ident.span(), INT.iter())
+                    SetIterator::Named(attrs, ident.span(), EMPTY_PATH, INT.iter())
                 } else if ident == "f_" {
-                    SetIterator::Named(attrs, ident.span(), FLOAT.iter())
+                    SetIterator::Named(attrs, ident.span(), EMPTY_PATH, FLOAT.iter())
+                } else if ident == "NonZeroU_" {
+                    SetIterator::Named(attrs, ident.span(), NUM_PATH, NON_ZERO_UINT.iter())
+                } else if ident == "NonZeroI_" {
+                    SetIterator::Named(attrs, ident.span(), NUM_PATH, NON_ZERO_INT.iter())
                 } else {
                     ident.span().unwrap().error("Unknown type set").emit();
                     SetIterator::Set(attrs, Punctuated::new().into_iter())
@@ -57,12 +65,18 @@ impl IntoIterator for WithAttr<LitSet> {
     }
 }
 
+const EMPTY_PATH: &'static [&'static str] = &[];
+const NUM_PATH: &'static [&'static str] = &["core", "num"];
+
 const UINT: [&'static str; 6] = ["u8", "u16", "u32", "u64", "u128", "usize"];
 const INT: [&'static str; 6] = ["i8", "i16", "i32", "i64", "i128", "isize"];
 const FLOAT: [&'static str; 2] = ["f32", "f64"];
 
+const NON_ZERO_UINT: [&'static str; 6] = ["NON_ZERO_U8", "NON_ZERO_U16", "NON_ZERO_U32", "NON_ZERO_U64", "NON_ZERO_U128", "NON_ZERO_Usize"];
+const NON_ZERO_INT: [&'static str; 6] = ["NON_ZERO_I8", "NON_ZERO_I16", "NON_ZERO_I32", "NON_ZERO_I64", "NON_ZERO_I128", "NON_ZERO_Isize"];
+
 enum SetIterator {
-    Named(Vec<Attribute>, Span, Iter<'static, &'static str>),
+    Named(Vec<Attribute>, Span, &'static[&'static str], Iter<'static, &'static str>),
     Set(Vec<Attribute>, IntoIter<WithAttr<Type>, Token!(,)>),
 }
 
@@ -71,7 +85,18 @@ impl Iterator for SetIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             SetIterator::Set(attrs, types) => types.next().map(|WithAttr(a, t)|WithAttr({let mut attrs = attrs.clone(); attrs.extend(a); attrs}, t)),
-            SetIterator::Named(attrs, span, iter) => iter.next().map(|n|WithAttr(attrs.clone(), Type::Path(TypePath { qself: None, path: Ident::new(n, *span).into() }))),
+            SetIterator::Named(attrs, span, path, iter) => iter.next().map(|name|
+                WithAttr(attrs.clone(), Type::Path(TypePath {
+                    qself: None,
+                    path: Path {
+                        leading_colon: None,
+                        segments: path.iter()
+                            .map(|name|Pair::new(PathSegment { ident: Ident::new(name, *span), arguments: PathArguments::None }, Some(Token!(::)(*span))))
+                            .chain(::std::iter::once(Pair::new(PathSegment { ident: Ident::new(name, *span), arguments: PathArguments::None }, None)))
+                            .collect()
+                    }
+                }))
+            ),
         }
     }
 }
